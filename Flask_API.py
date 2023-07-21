@@ -14,12 +14,12 @@ from flask import Flask, jsonify, render_template, request
 #################################################
 engine = create_engine("sqlite:///spotify.sqlite")
 
-# metadata = MetaData()
-# metadata.reflect(bind=engine)
+metadata = MetaData()
+metadata.reflect(bind=engine)
 
-# # Save reference to the table
-# recommendation = metadata.tables['recommendation_table']
-# top_artist = metadata.tables['top_artist_table']
+# Save reference to the table
+recommendation = metadata.tables['recommendation_table']
+top_artist = metadata.tables['top_artist_table']
 
 
 #################################################
@@ -111,15 +111,13 @@ app = Flask(__name__)
 
 @app.route("/")
 def welcome():
-    
-    return render_template("index.html")
-
     """List all available api routes."""
-# (
-#         f"Available Routes:<br/>"
-#         f"/api/v1.0/top_artists<br/>"
-#         f"/api/v1.0/recommendations"
-#     )
+    return(
+
+        f"Available Routes:<br/>"
+        f"/api/v1.0/artist/popularity<br/>"
+
+    )
 
 # @app.route("/results")
 # def result():
@@ -128,6 +126,7 @@ def welcome():
 
 @app.route("/api/v1.0/<artist>/<popularity>")
 def names(artist, popularity):
+    popularity = int(popularity)
     if popularity <10:
         min_popularty = 0
         max_popularity = popularity +10
@@ -269,8 +268,8 @@ def names(artist, popularity):
             "duration": artist.duration_s
         }
         top_rec_list.append(dict)
-
-    return jsonify(top_song_list)
+    data = [top_song_list, top_rec_list]
+    return jsonify(data)
 
 
 # @app.route("/api/v1.0/recommendations")
@@ -309,4 +308,4 @@ def names(artist, popularity):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host = "0.0.0.0", port = 5501,debug=True)
