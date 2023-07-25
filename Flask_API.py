@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func, Table, MetaData
 import sqlite3
 import requests
-
+from flask_cors import CORS
 from flask import Flask, jsonify, render_template, request
 
 
@@ -112,6 +112,7 @@ def get_song_audio_features(token, song_id):
 # Flask Setup
 #################################################
 app = Flask(__name__)
+CORS(app)
 
 
 #################################################
@@ -125,7 +126,7 @@ def welcome():
 
         f"Available Routes:<br/>"
         f"/api/v1.0/artist/popularity<br/>"
-
+        f"/api/v1.0/artist"
     )
 
 # @app.route("/results")
@@ -136,7 +137,7 @@ def welcome():
 @app.route("/api/v1.0/<artist>/<popularity>")
 
 
-def names(artist, popularity):
+def top_recs(artist, popularity):
     """Gather necessary recommendations and top songs by artist"""
 
     # Calculate range for maximum and minimum popularity
@@ -182,6 +183,79 @@ def names(artist, popularity):
             }
             recommended_song_list.append(dict)
 
+    # Get audio features for recommended songs and top songs
+    recommended_features = get_song_audio_features(token, recommended_song_id)
+
+    # Create DataFrames
+    df_recommended_audiofeatures =pd.DataFrame(recommended_features['audio_features'])
+
+    # Create additional dataFrames and drop duplicates
+    df_recommended_song_list = pd.DataFrame(recommended_song_list)
+    df_recommended_song_list = df_recommended_song_list.drop_duplicates(subset=['name']).reset_index(drop=True)
+
+    # Merge DF
+    recommendations_df = pd.merge(df_recommended_song_list, df_recommended_audiofeatures, on ='id')
+
+    # Add in seconds column
+    recommendations_df['duration_s'] = recommendations_df['duration_ms'] / 1000
+    recommendations_df
+
+    # Connect to SQLlite DB
+    connection = sqlite3.connect("spotify.sqlite")
+
+    # Save Tables to DB
+    recommendation_table = 'recommendation_table'
+    recommendations_df.to_sql(recommendation_table, connection, index = False, if_exists='replace')
+
+
+    # Commit and Close Changes
+    connection.commit()
+    connection.close()
+
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    top_recommendations = session.query(recommendation).all()
+
+
+    session.close()
+
+    top_rec_list = []
+
+    # Save necessary info for top recommendations
+    for artist in top_recommendations:
+        dict = {
+            "song": artist.name,
+            "artist": artist.artist,
+            "popularity": artist.popularity,
+            "danceability": artist.danceability,
+            "energy": artist.energy,
+            "loudness": artist.loudness,
+            "speechiness": artist.speechiness,
+            "acousticness": artist.acousticness,
+            "instamentalness": artist.instrumentalness,
+            "liveness": artist.liveness,
+            "valence": artist.valence,
+            "tempo": artist.tempo,
+            "duration": artist.duration_s
+        }
+        top_rec_list.append(dict)
+    data = [top_rec_list]
+    return jsonify(data)
+
+
+
+
+
+@app.route("/api/v1.0/<artist>/")
+
+
+def top_songs(artist):
+    # Run functions to get token
+    token = get_token()
+
+    result = search_for_artist(token, artist)
+    artist_id = result["id"]
     # Get the top songs and artists and create empty lists to store them
     top_songs_by_artist = get_songs_by_artist(token, artist_id)
     song_list = []
@@ -203,31 +277,23 @@ def names(artist, popularity):
             }
             song_list.append(dict)
 
-    # Get audio features for recommended songs and top songs
-    recommended_features = get_song_audio_features(token, recommended_song_id)
+
+
+
+    # Get audiofeatures from top songs
     top_artist_features = get_song_audio_features(token, song_id)
 
 
-
-
     # Create DataFrames
-    df_recommended_audiofeatures =pd.DataFrame(recommended_features['audio_features'])
     df_top_artist_audiofeatures = pd.DataFrame(top_artist_features['audio_features'])
 
 
-    # Create additional dataFrames and drop duplicates
-    df_recommended_song_list = pd.DataFrame(recommended_song_list)
-    df_recommended_song_list = df_recommended_song_list.drop_duplicates(subset=['name']).reset_index(drop=True)
 
+    # Create additional dataFrames and drop duplicates
     df_top_artist_song_list = pd.DataFrame(song_list)
     df_top_artist_song_list = df_top_artist_song_list.drop_duplicates(subset=['name']).reset_index(drop=True)
 
-    # Merge DF
-    recommendations_df = pd.merge(df_recommended_song_list, df_recommended_audiofeatures, on ='id')
 
-    # Add in seconds column
-    recommendations_df['duration_s'] = recommendations_df['duration_ms'] / 1000
-    recommendations_df
 
     # Merge DF and add seconds column
     top_artist_df = pd.merge(df_top_artist_song_list, df_top_artist_audiofeatures, on ='id')
@@ -237,9 +303,7 @@ def names(artist, popularity):
     # Connect to SQLlite DB
     connection = sqlite3.connect("spotify.sqlite")
 
-    # Save Tables to DB
-    recommendation_table = 'recommendation_table'
-    recommendations_df.to_sql(recommendation_table, connection, index = False, if_exists='replace')
+
 
     top_artist_table = 'top_artist_table'
     top_artist_df.to_sql(top_artist_table, connection, index = False, if_exists= 'replace')
@@ -251,10 +315,10 @@ def names(artist, popularity):
     # Create our session (link) from Python to the DB
     session = Session(engine)
 
-    """Return a list of all passenger names"""
+
     # Query all top songs and recommendations
     top_songs = session.query(top_artist).all()
-    top_recommendations = session.query(recommendation).all()
+
 
     session.close()
     
@@ -280,27 +344,7 @@ def names(artist, popularity):
         }
         top_song_list.append(dict)
 
-    top_rec_list = []
-
-    # Save necessary info for top recommendations
-    for artist in top_recommendations:
-        dict = {
-            "song": artist.name,
-            "artist": artist.artist,
-            "popularity": artist.popularity,
-            "danceability": artist.danceability,
-            "energy": artist.energy,
-            "loudness": artist.loudness,
-            "speechiness": artist.speechiness,
-            "acousticness": artist.acousticness,
-            "instamentalness": artist.instrumentalness,
-            "liveness": artist.liveness,
-            "valence": artist.valence,
-            "tempo": artist.tempo,
-            "duration": artist.duration_s
-        }
-        top_rec_list.append(dict)
-    data = [top_song_list, top_rec_list]
+    data = [top_song_list]
     return jsonify(data)
 
 
