@@ -75,7 +75,9 @@ def search_for_artist(token, artist_name):
         print("No artist with this name exists")
         return None
     
-    return json_result[0]
+    result = json_result[0]
+    artist_id = result['id']
+    return artist_id
 
 # Get Song Recommendations based on artist ID
 def get_songs_recommendations(token, artist_id, min_popularity, max_popularity):
@@ -105,6 +107,83 @@ def get_song_audio_features(token, song_id):
         print(f"Failed to fetch audio features. Status code: {response.status_code}")
         return None
 
+def song_rec_dict(songs):
+    recommended_song_id = []
+    recommended_song_list = []
+    for song in songs:
+        recommended_song_id.append(song['id'])
+        for artist in song['artists']:
+        # print(artist['name'])
+        # print("------------")
+            dict = {
+                'name' : song['name'],
+                'artist' : artist['name'],
+                'id': song['id'],
+                'popularity' : song['popularity'],
+
+            }
+            recommended_song_list.append(dict)
+    return {
+        'song_id': recommended_song_id,
+        'song_list': recommended_song_list
+        }
+
+def top_rec_list(top_recommendations):
+    top_rec_list = []
+    for artist in top_recommendations:
+        dict = {
+            "song": artist.name,
+            "artist": artist.artist,
+            "popularity": artist.popularity,
+            "danceability": artist.danceability,
+            "energy": artist.energy,
+            "loudness": artist.loudness,
+            "speechiness": artist.speechiness,
+            "acousticness": artist.acousticness,
+            "instamentalness": artist.instrumentalness,
+            "liveness": artist.liveness,
+            "valence": artist.valence,
+            "tempo": artist.tempo,
+            "duration": artist.duration_s
+        }
+        top_rec_list.append(dict)
+    return top_rec_list
+
+def top_recommendations(recommendations_df):
+    # Connect to SQLlite DB
+    connection = sqlite3.connect("spotify.sqlite")
+
+    # Save Tables to DB
+    recommendation_table = 'recommendation_table'
+    recommendations_df.to_sql(recommendation_table, connection, index = False, if_exists='replace')
+
+
+    # Commit and Close Changes
+    connection.commit()
+    connection.close()
+
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    top_recommendations = session.query(recommendation).all()
+
+
+    session.close()
+    return top_recommendations
+
+def create_df(recommended_features,song_lists):
+    df_recommended_audiofeatures =pd.DataFrame(recommended_features['audio_features'])
+
+    # Create additional dataFrames and drop duplicates
+    df_recommended_song_list = pd.DataFrame(song_lists['song_list'])
+    df_recommended_song_list = df_recommended_song_list.drop_duplicates(subset=['name']).reset_index(drop=True)
+
+    # Merge DF
+    recommendations_df = pd.merge(df_recommended_song_list, df_recommended_audiofeatures, on ='id')
+
+    # Add in seconds column
+    recommendations_df['duration_s'] = recommendations_df['duration_ms'] / 1000
+    return recommendations_df
 
 
 
@@ -144,103 +223,107 @@ def top_recs(artist, popularity):
     popularity = int(popularity)
     if popularity <10:
         min_popularty = 0
-        max_popularity = popularity +10
-    elif popularity >90:
-        min_popularty =popularity -10
+        max_popularity = popularity +20
+    elif popularity >80:
+        min_popularty =popularity -20
         max_popularity = 100
     else:
-        min_popularty= popularity - 10
-        max_popularity = popularity +10
+        min_popularty= popularity - 20
+        max_popularity = popularity +20
 
     # Run functions to get token
     token = get_token()
 
     # Save artist result name
-    result = search_for_artist(token, artist)
-    artist_id = result["id"]
+    artist_id = search_for_artist(token, artist)
+    # artist_id = result["id"]
 
     # Get song recommendation list
     songs = get_songs_recommendations(token, artist_id, min_popularty, max_popularity)
 
-    # Save empty list to store song list and ID
-    recommended_song_list = []
-    recommended_song_id = []
+    song_lists = song_rec_dict(songs)
 
-    # Loop to save song ID and song recommendation list
-    for song in songs:
-    # print(song['name'])
-    # print(song['id'])
-        recommended_song_id.append(song['id'])
-        for artist in song['artists']:
-        # print(artist['name'])
-        # print("------------")
-            dict = {
-                'name' : song['name'],
-                'artist' : artist['name'],
-                'id': song['id'],
-                'popularity' : song['popularity'],
+    # # Save empty list to store song list and ID
+    # recommended_song_list = []
+    # recommended_song_id = []
 
-            }
-            recommended_song_list.append(dict)
+    # # Loop to save song ID and song recommendation list
+    # for song in songs:
+    # # print(song['name'])
+    # # print(song['id'])
+    #     recommended_song_id.append(song['id'])
+    #     for artist in song['artists']:
+    #     # print(artist['name'])
+    #     # print("------------")
+    #         dict = {
+    #             'name' : song['name'],
+    #             'artist' : artist['name'],
+    #             'id': song['id'],
+    #             'popularity' : song['popularity'],
+
+    #         }
+    #         recommended_song_list.append(dict)
 
     # Get audio features for recommended songs and top songs
-    recommended_features = get_song_audio_features(token, recommended_song_id)
+    recommended_features = get_song_audio_features(token, song_lists['song_id'])
 
     # Create DataFrames
-    df_recommended_audiofeatures =pd.DataFrame(recommended_features['audio_features'])
+    # df_recommended_audiofeatures =pd.DataFrame(recommended_features['audio_features'])
 
-    # Create additional dataFrames and drop duplicates
-    df_recommended_song_list = pd.DataFrame(recommended_song_list)
-    df_recommended_song_list = df_recommended_song_list.drop_duplicates(subset=['name']).reset_index(drop=True)
+    # # Create additional dataFrames and drop duplicates
+    # df_recommended_song_list = pd.DataFrame(song_lists['song_list'])
+    # df_recommended_song_list = df_recommended_song_list.drop_duplicates(subset=['name']).reset_index(drop=True)
 
-    # Merge DF
-    recommendations_df = pd.merge(df_recommended_song_list, df_recommended_audiofeatures, on ='id')
+    # # Merge DF
+    # recommendations_df = pd.merge(df_recommended_song_list, df_recommended_audiofeatures, on ='id')
 
-    # Add in seconds column
-    recommendations_df['duration_s'] = recommendations_df['duration_ms'] / 1000
-    recommendations_df
+    # # Add in seconds column
+    # recommendations_df['duration_s'] = recommendations_df['duration_ms'] / 1000
+    recommendations_df = create_df(recommended_features, song_lists)
 
-    # Connect to SQLlite DB
-    connection = sqlite3.connect("spotify.sqlite")
+    top_rec_SQL = top_recommendations(recommendations_df)
+    # # Connect to SQLlite DB
+    # connection = sqlite3.connect("spotify.sqlite")
 
-    # Save Tables to DB
-    recommendation_table = 'recommendation_table'
-    recommendations_df.to_sql(recommendation_table, connection, index = False, if_exists='replace')
-
-
-    # Commit and Close Changes
-    connection.commit()
-    connection.close()
-
-    # Create our session (link) from Python to the DB
-    session = Session(engine)
-
-    top_recommendations = session.query(recommendation).all()
+    # # Save Tables to DB
+    # recommendation_table = 'recommendation_table'
+    # recommendations_df.to_sql(recommendation_table, connection, index = False, if_exists='replace')
 
 
-    session.close()
+    # # Commit and Close Changes
+    # connection.commit()
+    # connection.close()
 
-    top_rec_list = []
+    # # Create our session (link) from Python to the DB
+    # session = Session(engine)
+
+    # top_recommendations = session.query(recommendation).all()
+
+
+    # session.close()
+
+    data = top_rec_list(top_rec_SQL)
+    # top_rec_list = []
 
     # Save necessary info for top recommendations
-    for artist in top_recommendations:
-        dict = {
-            "song": artist.name,
-            "artist": artist.artist,
-            "popularity": artist.popularity,
-            "danceability": artist.danceability,
-            "energy": artist.energy,
-            "loudness": artist.loudness,
-            "speechiness": artist.speechiness,
-            "acousticness": artist.acousticness,
-            "instamentalness": artist.instrumentalness,
-            "liveness": artist.liveness,
-            "valence": artist.valence,
-            "tempo": artist.tempo,
-            "duration": artist.duration_s
-        }
-        top_rec_list.append(dict)
-    data = [top_rec_list]
+    # for artist in top_recommendations:
+    #     dict = {
+    #         "song": artist.name,
+    #         "artist": artist.artist,
+    #         "popularity": artist.popularity,
+    #         "danceability": artist.danceability,
+    #         "energy": artist.energy,
+    #         "loudness": artist.loudness,
+    #         "speechiness": artist.speechiness,
+    #         "acousticness": artist.acousticness,
+    #         "instamentalness": artist.instrumentalness,
+    #         "liveness": artist.liveness,
+    #         "valence": artist.valence,
+    #         "tempo": artist.tempo,
+    #         "duration": artist.duration_s
+    #     }
+    #     top_rec_list.append(dict)
+    # data = top_rec_list
     return jsonify(data)
 
 
@@ -254,8 +337,7 @@ def top_songs(artist):
     # Run functions to get token
     token = get_token()
 
-    result = search_for_artist(token, artist)
-    artist_id = result["id"]
+    artist_id = search_for_artist(token, artist)
     # Get the top songs and artists and create empty lists to store them
     top_songs_by_artist = get_songs_by_artist(token, artist_id)
     song_list = []
@@ -344,7 +426,7 @@ def top_songs(artist):
         }
         top_song_list.append(dict)
 
-    data = [top_song_list]
+    data = top_song_list
     return jsonify(data)
 
 
