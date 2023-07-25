@@ -30,7 +30,7 @@ function plotDurationBarGraph(jsonData) {
 
     // Create the layout for the bar graph
     var layout = {
-        title: 'Duration of Songs by Tyler the Creator',
+        title: 'Duration of Songs by' + artist,
         xaxis: {
             title: 'Song'
         },
@@ -72,7 +72,7 @@ function plotPopularityBarGraph(jsonData) {
 
     // Create the layout for the bar graph
     var layout = {
-        title: 'Popularity of Songs by Tyler the Creator',
+        title: 'Popularity of Songs by' + artist,
         xaxis: {
             title: 'Song'
         },
@@ -119,7 +119,7 @@ function plotTempoHistogram(jsonData) {
 
     // Create the layout for the histogram
     var layout = {
-        title: 'Tempo Histogram for Songs by Tyler the Creator',
+        title: 'Tempo Histogram for Songs by' + artist,
         xaxis: {
             title: 'Tempo (BPM)'
         },
@@ -137,16 +137,3 @@ d3.json(url).then(function(data) {
     console.log(data); // This will log the fetched JSON data
     plotTempoHistogram(data); // Plot the histogram using the fetched data
 });
-
-let apiCalled = false;
-
-if (!apiCalled) {
-  d3.json(url).then(function(data) {
-    console.log(data);
-    apiCalled = true; // Set the flag to true once the API call is made.
-    plotDurationBarGraph(data)
-    plotPopularityBarGraph(data)
-    plotTempoHistogram(data)
-  });
-}
-console.log(url);
