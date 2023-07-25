@@ -137,6 +137,7 @@ def welcome():
 
 def names(artist, popularity):
     """Gather necessary recommendations and top songs by artist"""
+    print(f"pop value: {popularity}")
 
     # Calculate range for maximum and minimum popularity
     popularity = int(popularity)
