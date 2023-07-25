@@ -1,0 +1,11 @@
+div {
+    display: flex;
+    justify-content: center;
+
+}
+
+input, button {
+    display: inline_block;
+    padding: 10px;
+    margin-top: 5px;
+}
