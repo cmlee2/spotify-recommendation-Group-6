@@ -5,7 +5,7 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func, Table, MetaData
 import sqlite3
-
+from flask_cors import CORS
 from flask import Flask, jsonify, render_template, request
 
 
@@ -111,7 +111,7 @@ def get_song_audio_features(token, song_id):
 # Flask Setup
 #################################################
 app = Flask(__name__)
-
+CORS(app)
 
 #################################################
 # Flask Routes
