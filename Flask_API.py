@@ -5,6 +5,7 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func, Table, MetaData
 import sqlite3
+import requests
 
 from flask import Flask, jsonify, render_template, request
 
